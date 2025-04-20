@@ -1544,6 +1544,13 @@ end
 -- ===========================================================================
 function LateInitialize()
 
+  local pPlayer :table = Players[ Game.GetLocalPlayer() ]
+  local pPlayerCulture :table = pPlayer and pPlayer:GetCulture()
+  if pPlayerCulture then
+    m_hideCivics = -1 == pPlayerCulture:GetProgressingCivic()
+    m_hideResearch = -1 == pPlayer:GetTechs():GetResearchingTech()
+  end
+
 	Subscribe();
 
 	-- InitChatPanel
