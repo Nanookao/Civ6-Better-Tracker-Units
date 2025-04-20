@@ -21,9 +21,11 @@ local m_isHeroes:boolean     = GameCapabilities.HasCapability("CAPABILITY_HEROES
 local m_isApocalypse:boolean = GameCapabilities.HasCapability("CAPABILITY_MEGADISASTERS"); -- Apocalypse Mode
 local m_isBES:boolean        = Modding.IsModActive("07D5DFAB-44CE-8F63-8344-93E427E9376E"); -- Better Espionage Screen for new spy icons
 local m_isCQUI:boolean       = Modding.IsModActive("1d44b5e7-753e-405b-af24-5ee634ec8a01"); -- for new apostle icons
+--[[
 print("Apocalypse: ", (m_isApocalypse and "YES" or "no"));
 print("Heroes    : ", (m_isHeroes and "YES" or "no"));
 print("BES       : ", (m_isBES and "YES" or "no"));
+--]]
 print("CQUI      : ", (m_isCQUI and "YES" or "no"));
 
 
@@ -1652,4 +1654,4 @@ function Initialize()
 end
 Initialize();
 
-print("Loaded WorldTracker.lua from Better World Tracker Units");
+-- print("Loaded WorldTracker.lua from Better World Tracker Units");
