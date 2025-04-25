@@ -11,8 +11,10 @@
 	</Properties>
 	<InGameActions>
 		<!-- LoadOrder: CQUI uses up to 200 -->
-		<ImportFiles id="BTU_ImportFiles">
-			<Properties><LoadOrder>300</LoadOrder></Properties>
+		<ImportFiles id="BetterTrackerUnits_ImportFiles">
+			<Properties>
+				<LoadOrder>300</LoadOrder>
+			</Properties>
 			<Items>
 				<File>UI/worldtracker.lua</File>
 				<File>UI/worldtracker.xml</File>
