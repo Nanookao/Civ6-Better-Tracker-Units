@@ -9,7 +9,7 @@ include("TechAndCivicSupport");
 include("SupportFunctions");
 include("GameCapabilities");
 
-g_TrackedItems = {};		-- Populated by WorldTrackerItems_* scripts;
+g_TrackedItems = {};		-- Populated by WorldTrackerItem_* scripts;
 include("WorldTrackerItem_", true);
 
 -- Include self contained additional tabs
@@ -45,6 +45,7 @@ local WORLD_TRACKER_PANEL_WIDTH			:number = 300;
 local MINIMAP_PADDING					:number = 40;
 
 local UNITS_PANEL_MIN_HEIGHT			:number = 85;
+local UNITS_PANEL_PADDING				:number = 65;
 local TOPBAR_PADDING					:number = 100;
 
 local WORLD_TRACKER_TOP_PADDING			:number = 200;
@@ -64,6 +65,7 @@ local m_hideCivics				:boolean = false;
 local m_hideResearch			:boolean = false;
 local m_hideUnitList			:boolean = true;
 
+local m_dropdownExpanded		:boolean = false;
 local m_unreadChatMsgs			:number  = 0;		-- number of chat messages unseen due to the chat panel being hidden.
 
 local m_researchInstance		:table	 = {};		-- Single instance wired up for the currently being researched tech
@@ -88,6 +90,8 @@ local m_unitSearchString		:string = "";
 local m_remainingRoom			:number = 0;
 local m_isUnitListSizeDirty		:boolean = false;
 local m_isMinimapInitialized	:boolean = false;
+
+local m_uiCheckBoxes			:table = {Controls.ChatCheck, Controls.CivicsCheck, Controls.ResearchCheck, Controls.UnitCheck};
 
 local m_isUnitListMilitary		:boolean = false;
 local m_showTrader				:boolean = false;
@@ -122,12 +126,78 @@ end
 
 -- ===========================================================================
 function RealizeEmptyMessage()	
+	-- print( "RealizeEmptyMessage", m_hideChat , m_hideCivics , m_hideResearch , m_hideUnitList )
 	-- First a quick check if all native panels are hidden.
 	if m_hideChat and m_hideCivics and m_hideResearch and m_hideUnitList then		
 		local isAllPanelsHidden:boolean = IsAllPanelsHidden();	-- more expensive iteration
 		Controls.EmptyPanel:SetHide( isAllPanelsHidden==false );	
 	else
 		Controls.EmptyPanel:SetHide(true);
+	end
+end
+
+-- ===========================================================================
+function ToggleDropdown()
+	if m_dropdownExpanded then
+		m_dropdownExpanded = false;
+		Controls.DropdownAnim:Reverse();
+		Controls.DropdownAnim:Play();
+		UI.PlaySound("Tech_Tray_Slide_Closed");
+	else
+		UI.PlaySound("Tech_Tray_Slide_Open");
+		m_dropdownExpanded = true;
+		Controls.DropdownAnim:SetToBeginning();
+		Controls.DropdownAnim:Play();
+		CheckEnoughRoom();
+	end
+end
+
+-- ===========================================================================
+function CheckEnoughRoom()
+	local availableSpace : number = Controls.WorldTrackerVerticalContainer:GetSizeY();
+	if(m_researchInstance.MainPanel:IsVisible())then
+		availableSpace = availableSpace - CIVIC_RESEARCH_MIN_SIZE;
+	end
+	if(m_civicsInstance.MainPanel:IsVisible())then
+		availableSpace = availableSpace - CIVIC_RESEARCH_MIN_SIZE;
+	end
+	if(m_unitListInstance.UnitListMainPanel:IsVisible())then
+		availableSpace = availableSpace - CIVIC_RESEARCH_MIN_SIZE;
+	end
+	if(Controls.ChatPanelContainer:IsVisible())then
+		availableSpace = availableSpace - CHAT_COLLAPSED_SIZE;
+	end
+	if(Controls.OtherContainer:IsVisible())then
+		availableSpace = availableSpace - Controls.OtherContainer:GetSizeY();
+	end
+
+	if(not Controls.ResearchCheck:IsChecked() and availableSpace < CIVIC_RESEARCH_MIN_SIZE)then
+		Controls.ResearchCheck:SetDisabled(true);
+		Controls.ResearchCheck:LocalizeAndSetToolTip("LOC_WORLDTRACKER_NO_ROOM");
+	else
+		Controls.ResearchCheck:SetDisabled(false);
+		Controls.ResearchCheck:SetToolTipString("");
+	end
+	if(not Controls.CivicsCheck:IsChecked() and availableSpace < CIVIC_RESEARCH_MIN_SIZE)then
+		Controls.CivicsCheck:SetDisabled(true);
+		Controls.CivicsCheck:LocalizeAndSetToolTip("LOC_WORLDTRACKER_NO_ROOM");
+	else
+		Controls.CivicsCheck:SetDisabled(false);
+		Controls.CivicsCheck:SetToolTipString("");
+	end
+	if(not Controls.UnitCheck:IsChecked() and availableSpace < UNITS_PANEL_MIN_HEIGHT)then
+		Controls.UnitCheck:SetDisabled(true);
+		Controls.UnitCheck:LocalizeAndSetToolTip("LOC_WORLDTRACKER_NO_ROOM");
+	else
+		Controls.UnitCheck:SetDisabled(false);
+		Controls.UnitCheck:SetToolTipString("");
+	end
+	if(not Controls.ChatCheck:IsChecked() and availableSpace < CHAT_COLLAPSED_SIZE)then
+		Controls.ChatCheck:SetDisabled(true);
+		Controls.ChatCheck:LocalizeAndSetToolTip("LOC_WORLDTRACKER_NO_ROOM");
+	else
+		Controls.ChatCheck:SetDisabled(false);
+		Controls.ChatCheck:SetToolTipString("");
 	end
 end
 
@@ -156,6 +226,10 @@ function ToggleAll(hideAll:boolean)
 
 	if( hideAll ) then
 		UI.PlaySound("Tech_Tray_Slide_Closed");
+		if( m_dropdownExpanded ) then
+			Controls.DropdownAnim:SetToBeginning();
+			m_dropdownExpanded = false;
+		end
 	end
 
 	Controls.WorldTrackerAlpha:Reverse();
@@ -209,13 +283,14 @@ function UpdateResearchPanel( isHideResearch:boolean )
 
 	if not HasCapability("CAPABILITY_TECH_CHOOSER") or not pPlayerConfig:IsAlive() then
 		isHideResearch = true;
-		Controls.ResearchButton:SetHide(true);
+		Controls.ResearchCheck:SetHide(true);
 	end
 	if isHideResearch ~= nil then
 		m_hideResearch = isHideResearch;		
 	end
 	
 	m_researchInstance.MainPanel:SetHide( m_hideResearch );
+	Controls.ResearchCheck:SetCheck( not m_hideResearch );
 	LuaEvents.WorldTracker_ToggleResearchPanel(m_hideResearch or m_hideAll);
 	RealizeEmptyMessage();
 	RealizeStack();
@@ -258,13 +333,14 @@ function UpdateCivicsPanel(hideCivics:boolean)
 
 	if not HasCapability("CAPABILITY_CIVICS_CHOOSER") or (localPlayerID ~= PlayerTypes.NONE and not pPlayerConfig:IsAlive()) then
 		hideCivics = true;
-		Controls.CivicsButton:SetHide(true);
+		Controls.CivicsCheck:SetHide(true);
 	end
 	if hideCivics ~= nil then
 		m_hideCivics = hideCivics;		
 	end
 
 	m_civicsInstance.MainPanel:SetHide(m_hideCivics); 
+	Controls.CivicsCheck:SetCheck(not m_hideCivics);
 	LuaEvents.WorldTracker_ToggleCivicPanel(m_hideCivics or m_hideAll);
 	RealizeEmptyMessage();
 	RealizeStack();
@@ -312,6 +388,7 @@ function UpdateUnitListPanel(hideUnitList:boolean)
 
 	if not HasCapability("CAPABILITY_UNIT_LIST") or (ePlayer ~= PlayerTypes.NONE and not pPlayerConfig:IsAlive()) then
 		hideUnitList = true;
+		Controls.CivicsCheck:SetHide(true);
 		m_unitListInstance.UnitListMainPanel:SetHide(true);
 		return;
 	end
@@ -321,6 +398,7 @@ function UpdateUnitListPanel(hideUnitList:boolean)
 	m_unitEntryIM:ResetInstances();
 
 	m_unitListInstance.UnitListMainPanel:SetHide(m_hideUnitList); 
+	Controls.UnitCheck:SetCheck(not m_hideUnitList);
 
 	local pPlayer : table = Players[ePlayer];
 	local pPlayerUnits : table = pPlayer:GetUnits();
@@ -379,7 +457,13 @@ end
 -- ===========================================================================
 function StartUnitListSizeUpdate()
 	m_isUnitListSizeDirty = true;
-	ContextPtr:RequestRefresh();
+
+        --[[ Infixo?
+        --Allow the unit stack to take up it's full size so the auto sizing parent can do it's thing
+	m_unitListInstance.UnitStackContainer:SetHide(false);
+	m_unitListInstance.UnitStack:ChangeParent(m_unitListInstance.UnitStackContainer); 
+        --]]
+        ContextPtr:RequestRefresh();
 end
 
 -- ===========================================================================
@@ -395,7 +479,22 @@ function UpdateUnitListSize()
 	if(not m_isMinimapInitialized)then
 		UpdateWorldTrackerSize();
 	end
+
 	if(not m_hideUnitList)then
+		local unitStackSize : number = m_unitListInstance.UnitStack:GetSizeY();
+
+		Controls.WorldTrackerVerticalContainer:CalculateSize();
+
+		local slotSize : number = m_unitListInstance.UnitListMainPanel:GetParent():GetSizeY();
+
+		if(unitStackSize > slotSize - UNITS_PANEL_PADDING)then
+			m_unitListInstance.UnitListScroll:SetSizeY(slotSize - UNITS_PANEL_PADDING);
+			m_unitListInstance.UnitStackContainer:SetHide(true);
+			m_unitListInstance.UnitListScroll:SetHide(false);
+			m_unitListInstance.UnitStack:ChangeParent(m_unitListInstance.UnitListScroll);
+		else
+			m_unitListInstance.UnitListScroll:SetHide(true);
+		end
 		m_isUnitListSizeDirty = false;
 	end
 end
@@ -884,9 +983,9 @@ function AddUnitToUnitList(pUnit:table)
 	-- Infixo: highlight the currently selected unit or use default control
 	unitEntry.Button:SetTexture( UI.IsUnitSelected(pUnit) and "Controls_ButtonControl_Tan" or "Controls_ButtonControl");
 	
-	unitEntry.Button:RegisterCallback( Mouse.eLClick, function() OnUnitEntryClicked(pUnit:GetID(), unitEntry, true)  end); -- left click closes
+	unitEntry.Button:RegisterCallback( Mouse.eLClick, function() OnUnitEntryClicked(pUnit:GetID(), unitEntry, false)  end); -- left click does not close
 	unitEntry.Button:RegisterCallback( Mouse.eMClick, function() BQUI_CalculateUnits( BQUI_UnitType, unitEntry.BQUI_UnitsSum ); end );    -- bolbas (Middle Click on Unit List entries added - shows total number of units of that type)
-	unitEntry.Button:RegisterCallback( Mouse.eRClick, function() OnUnitEntryClicked(pUnit:GetID(), unitEntry, false) end); -- right click does not close
+	unitEntry.Button:RegisterCallback( Mouse.eRClick, function() OnUnitEntryClicked(pUnit:GetID(), unitEntry, true) end); -- right click closes
 
 	-- HEALTH
 	-- Infixo: this is Firaxis' function from UnitPanel.lua
@@ -966,7 +1065,9 @@ end
 
 -- INFIXO: END OF BOLBAS' CODE
 -- ===========================================================================
-
+function SetUnitEntryStatusIcon(unitEntry:table, icon:string)
+	unitEntry.UnitStatusIcon:SetIcon(icon);
+end
 
 -- ===========================================================================
 function UpdateUnitIcon(pUnit:table, uiUnitEntry:table)
@@ -1017,6 +1118,7 @@ end
 function UpdateChatPanel(hideChat:boolean)
 	m_hideChat = hideChat; 
 	Controls.ChatPanelContainer:SetHide(m_hideChat);
+	Controls.ChatCheck:SetCheck(not m_hideChat);
 	RealizeEmptyMessage();
 	RealizeStack();
 	CheckUnreadChatMessageCount();
@@ -1035,11 +1137,11 @@ end
 -- ===========================================================================
 function UpdateUnreadChatMsgs()
 	if(GameConfiguration.IsPlayByCloud()) then
-		Controls.ChatButton:SetText(Locale.Lookup("LOC_PLAY_BY_CLOUD_PANEL"));
+		Controls.ChatCheck:GetTextButton():SetText(Locale.Lookup("LOC_PLAY_BY_CLOUD_PANEL"));
 	elseif(m_unreadChatMsgs > 0) then
-		Controls.ChatButton:SetText(Locale.Lookup("LOC_HIDE_CHAT_PANEL_UNREAD_MESSAGES", m_unreadChatMsgs));
+		Controls.ChatCheck:GetTextButton():SetText(Locale.Lookup("LOC_HIDE_CHAT_PANEL_UNREAD_MESSAGES", m_unreadChatMsgs));
 	else
-		Controls.ChatButton:SetText(Locale.Lookup("LOC_HIDE_CHAT_PANEL"));
+		Controls.ChatCheck:GetTextButton():SetText(Locale.Lookup("LOC_HIDE_CHAT_PANEL"));
 	end
 end
 
@@ -1210,6 +1312,7 @@ end
 
 -- ===========================================================================
 function OnResearchCompleted( ePlayer:number, eTech:number )
+	print( "OnResearchCompleted(ePlayer,eTech):", Players[ePlayer].Name, eTech )
 	if (ePlayer == Game.GetLocalPlayer()) then
 		m_currentResearchID = -1;
 		m_lastResearchCompletedID = eTech;
@@ -1301,6 +1404,7 @@ end
 -- ===========================================================================
 function Tutorial_ShowFullTracker()
 	Controls.ToggleAllButton:SetHide(true);
+	Controls.ToggleDropdownButton:SetHide(true);
 	UpdateCivicsPanel(false);
 	UpdateResearchPanel(false);
 	ToggleAll(false);
@@ -1309,11 +1413,13 @@ end
 -- ===========================================================================
 function Tutorial_ShowTrackerOptions()
 	Controls.ToggleAllButton:SetHide(false);
+	Controls.ToggleDropdownButton:SetHide(false);
 end
 
 -- ===========================================================================
 function OnSetMinimapCollapsed(isMinimapCollapsed:boolean)
 	m_isMinimapCollapsed = isMinimapCollapsed;
+	CheckEnoughRoom();
 	UpdateWorldTrackerSize();
 end
 
@@ -1402,7 +1508,7 @@ function AttachDynamicUI()
 	for i,kData in ipairs(g_TrackedItems) do
 		local uiInstance:table = {};
 		ContextPtr:BuildInstanceForControl( kData.InstanceType, uiInstance, Controls.WorldTrackerVerticalContainer );
-		if uiInstance.IconButton then
+		if kData.SelectFunc and uiInstance.IconButton then
 			uiInstance.IconButton:RegisterCallback(Mouse.eLClick, function() kData.SelectFunc() end);
 		end
 		table.insert(g_TrackedInstances, uiInstance);
@@ -1552,7 +1658,7 @@ function LateInitialize()
 		UpdateChatPanel(false);
 	else
 		UpdateChatPanel(true);
-		Controls.ChatButton:SetHide(true);
+		Controls.ChatCheck:SetHide(true);
 	end
 
 	UpdateUnreadChatMsgs();
@@ -1585,33 +1691,41 @@ function Initialize()
 
 	Controls.ChatPanelContainer:ChangeParent( Controls.WorldTrackerVerticalContainer );
 	Controls.TutorialGoals:ChangeParent( Controls.WorldTrackerVerticalContainer );	
+
+	-- Handle any text overflows with truncation and tooltip
+	local fullString :string = Controls.WorldTracker:GetText();
+	Controls.DropdownScroll:SetOffsetY(Controls.WorldTrackerHeader:GetSizeY() + STARTING_TRACKER_OPTIONS_OFFSET);	
 	
 	-- Hot-reload events
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
 	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
 	
+	Controls.ChatCheck:SetCheck(true);
+	Controls.CivicsCheck:SetCheck(true);
+	Controls.ResearchCheck:SetCheck(true);
 	Controls.ToggleAllButton:SetCheck(true);
 	Controls.ToggleAllButton:RegisterCheckHandler( function() ToggleAll(not Controls.ToggleAllButton:IsChecked()) end);
 
-	Controls.ChatButton:RegisterCallback( Mouse.eLClick,
-		function()
-			UpdateChatPanel(not m_hideChat);
-			StartUnitListSizeUpdate();
-		end);
-		
-	Controls.CivicsButton:RegisterCallback(	Mouse.eLClick,
-		function()
-			UpdateCivicsPanel(not m_hideCivics);
-			StartUnitListSizeUpdate();
-		end);
-		
-	Controls.ResearchButton:RegisterCallback( Mouse.eLClick,
-		function()
-			UpdateResearchPanel(not m_hideResearch);
-			StartUnitListSizeUpdate();
-	   end);
-	   
+	Controls.ChatCheck:RegisterCheckHandler(						function() UpdateChatPanel(not m_hideChat);
+																			   StartUnitListSizeUpdate();
+																			   CheckEnoughRoom();
+																			   end);
+	Controls.CivicsCheck:RegisterCheckHandler(						function() UpdateCivicsPanel(not m_hideCivics);
+																			   StartUnitListSizeUpdate();
+																			   CheckEnoughRoom();
+																			   end);
+	Controls.ResearchCheck:RegisterCheckHandler(					function() UpdateResearchPanel(not m_hideResearch);
+																			   StartUnitListSizeUpdate();
+																			   CheckEnoughRoom();
+																			   end);
+	Controls.UnitCheck:RegisterCheckHandler(						function() UpdateUnitListPanel(not m_hideUnitList); 
+																			   StartUnitListSizeUpdate();
+																			   CheckEnoughRoom();
+																			   end);
+	Controls.ToggleAllButton:RegisterCheckHandler(					function() ToggleAll(not Controls.ToggleAllButton:IsChecked()) end);
+	Controls.ToggleDropdownButton:RegisterCallback(	Mouse.eLClick, ToggleDropdown);
+
 	Controls.CivilianListButton:RegisterCallback( Mouse.eLClick,
 		function()
 			if not m_hideUnitList and m_isUnitListMilitary then m_hideUnitList = true; end -- showing military units -> change to civilian -> simulate "hidden"
