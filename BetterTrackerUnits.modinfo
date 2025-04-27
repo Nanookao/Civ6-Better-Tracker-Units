@@ -16,18 +16,18 @@
 				<LoadOrder>300</LoadOrder>
 			</Properties>
 			<Items>
-				<File>UI/worldtracker.lua</File>
-				<File>UI/worldtracker.xml</File>
-				<File>UI/worldtrackerunits.xml</File>
+				<File>UI/WorldTracker.lua</File>
+				<File>UI/WorldTracker.xml</File>
+				<File>UI/WorldTrackerUnits.xml</File>
 				<File>UI/btu_button_tech.dds</File>
 				<File>UI/btu_button_civ.dds</File>
 			</Items>
 		</ImportFiles>
 	</InGameActions>
 	<Files>
-		<File>UI/worldtracker.lua</File>
-		<File>UI/worldtracker.xml</File>
-		<File>UI/worldtrackerunits.xml</File>
+		<File>UI/WorldTracker.lua</File>
+		<File>UI/WorldTracker.xml</File>
+		<File>UI/WorldTrackerUnits.xml</File>
 		<File>UI/btu_button_tech.dds</File>
 		<File>UI/btu_button_civ.dds</File>
 	</Files>
